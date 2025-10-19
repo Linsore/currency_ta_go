@@ -1,0 +1,79 @@
+openapi: 3.0.3
+info:
+  title: Currency Quotes Service
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /quotes/update:
+    post:
+      summary: Request async quote update
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema: { type: string, maxLength: 128 }
+          required: false
+          description: Returns the same update_id for retries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pair]
+              properties:
+                pair: { type: string, example: EUR/MXN }
+      responses:
+        '200':
+          description: Accepted update request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update_id: { type: string, format: uuid }
+        '400': { description: Bad request }
+        '500': { description: Internal error }
+  /quotes/update/{id}:
+    get:
+      summary: Get update status/result by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Status/result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, pair]
+                properties:
+                  status: { type: string, enum: [pending, done, error] }
+                  pair: { type: string }
+                  price: { type: number, format: double }
+                  updated_at: { type: string, format: date-time }
+                  error: { type: string }
+        '404': { description: Not found }
+  /quotes/{pair}:
+    get:
+      summary: Get last quote by pair
+      parameters:
+        - in: path
+          name: pair
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Last known quote
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pair: { type: string }
+                  price: { type: number, format: double }
+                  updated_at: { type: string, format: date-time }
+        '404': { description: Not found }
