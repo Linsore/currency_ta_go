@@ -1,0 +1,44 @@
+# syntax=docker/dockerfile:1
+
+############################
+# Base (deps + source)
+############################
+FROM golang:1.23 AS base
+WORKDIR /app
+
+# 1) Cache deps
+COPY go.mod ./
+# COPY go.sum ./   # include if you have it
+RUN go mod download
+
+# 2) Bring in source
+COPY . .
+
+# 3) Now that source is here, fix go.mod/go.sum
+RUN go mod tidy
+
+############################
+# Tests + coverage
+############################
+FROM base AS test
+# If your code imports swagger docs package (_ "…/docs"),
+# ensure docs exist or generate them here before tests.
+# Otherwise remove swagger imports or guard with build tags.
+RUN mkdir -p /out && \
+    go mod tidy && \
+    go test ./... -race -coverprofile=/out/coverage.out && \
+    go tool cover -html=/out/coverage.out -o /out/index.html
+
+############################
+# (Optional) Nginx to serve coverage
+############################
+FROM nginx:alpine AS coverage
+COPY --from=test /out /usr/share/nginx/html
+
+############################
+# Runtime image (distroless)
+############################
+FROM gcr.io/distroless/base-debian12 AS app
+COPY --from=build /currency_ta_go /currency_ta_go
+EXPOSE 8080
+ENTRYPOINT ["/currency_ta_go"]
