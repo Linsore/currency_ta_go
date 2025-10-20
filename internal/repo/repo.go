@@ -24,24 +24,16 @@ import (
 	"currency_ta_go/internal/migrations"
 )
 
-// Embeds all SQL files from the migrations directory at compile time.
 
-
-// Repo is a thin wrapper around a pgx connection pool used by the
-// service to persist and query updates and quotes.
 type Repo struct {
 	db *pgxpool.Pool
 }
 
-// New creates a new repository backed by the provided pgx pool.
 func New(pool *pgxpool.Pool) *Repo {
 	return &Repo{db: pool}
 }
 
-// RunMigrations executes embedded SQL migration files in-order.
-// It is intentionally simple: if a migration fails, startup should fail.
-// Note: For production, consider a real migration tool (e.g., goose, migrate)
-// for versioning and transactional safety across multiple files.
+
 func RunMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 	files := []string{
 		"0001_init.sql",

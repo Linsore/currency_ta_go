@@ -82,13 +82,21 @@ func main() {
 	dataRepo := repo.New(dbPool)
 	svc := service.New(supportedPairs, dataRepo, exchanger, quotesCache)
 
-	// ----- HTTP wiring (rate limiter + logging) -----
-	ipLimiter := ratelimit.NewIPLimiter(rateLimit, rateWindow)
+	// ----- HTTP wiring (rate limiter + logging + CORS) -----
+	ipLimiter := ratelimit.New(rateLimit, rateWindow)
 	mux := httpx.NewMux(svc, ipLimiter.Middleware)
+	allowedOrigins := getEnvOrDefault("CORS_ALLOW_ORIGINS", "http://localhost:8081")
+	cors := httpx.NewCORS(allowedOrigins)
+
+	var handler http.Handler = mux
+	handler = cors(handler)
+	handler = httpx.LogRequests(handler)
+
 	server := &http.Server{
 		Addr:    httpAddr,
-		Handler: httpx.LogRequests(mux),
+		Handler: handler,
 	}
+
 
 	go func() {
 		log.Printf("listening on %s", httpAddr)
@@ -109,8 +117,6 @@ func getEnvOrDefault(key string, defaultVal string) string {
 	return defaultVal
 }
 
-// parseEnvDuration parses a duration from environment variable key,
-// falling back to defaultVal when unset or invalid.
 func parseEnvDuration(key string, defaultVal time.Duration) time.Duration {
 	if raw := os.Getenv(key); raw != "" {
 		if d, err := time.ParseDuration(raw); err == nil {
@@ -121,8 +127,7 @@ func parseEnvDuration(key string, defaultVal time.Duration) time.Duration {
 	return defaultVal
 }
 
-// parseEnvInt parses an integer from environment variable key,
-// falling back to defaultVal when unset or invalid.
+
 func parseEnvInt(key string, defaultVal int) int {
 	if raw := os.Getenv(key); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil {
@@ -133,7 +138,6 @@ func parseEnvInt(key string, defaultVal int) int {
 	return defaultVal
 }
 
-// shutdownOnSignal blocks until SIGINT/SIGTERM and then gracefully shuts down the server.
 func shutdownOnSignal(server *http.Server) {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

@@ -19,7 +19,7 @@ import (
 type Exchanger struct {
 	baseURL    string
 	httpClient *http.Client
-	Debug      bool // set true to log request and payload
+	Debug      bool 
 }
 func New(base string, timeout time.Duration) *Exchanger {
 	return &Exchanger{
@@ -29,9 +29,8 @@ func New(base string, timeout time.Duration) *Exchanger {
 }
 func (e *Exchanger) Convert(ctx context.Context, from, to string) (float64, error) {
 	u, _ := url.Parse(e.baseURL + "/latest")
-
 	q := u.Query()
-	// Frankfurter accepts either "base" or "from"; their docs show "from" but "base" is canonical.
+
 	q.Set("base", strings.ToUpper(from))
 	q.Set("symbols", strings.ToUpper(to))
 	u.RawQuery = q.Encode()
@@ -55,9 +54,9 @@ func (e *Exchanger) Convert(ctx context.Context, from, to string) (float64, erro
 	if e.Debug {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxDump))
 		log.Printf("fx resp: %d body=%s", resp.StatusCode, string(bytes.TrimSpace(raw)))
-		// put bytes back so the JSON decoder can read them
 		resp.Body = io.NopCloser(bytes.NewReader(raw))
 	}
+
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("external status %d", resp.StatusCode)
 	}

@@ -19,22 +19,19 @@ import (
 	"currency_ta_go/internal/service"
 )
 
-// Route path prefixes used for tail extraction.
+
 const (
 	updatePrefix = "/quotes/update/"
 	quotePrefix  = "/quotes/"
 )
 
-// Server bundles the HTTP handlers with the underlying service.
 type Server struct {
 	svc *service.Service
 }
 
-// Middleware defines a function that wraps an http.Handler (e.g., rate limiting).
 type Middleware func(http.Handler) http.Handler
 
-// NewMux creates an HTTP multiplexer with all routes registered and wrapped
-// by the provided middleware (such as a rate limiter).
+
 func NewMux(svc *service.Service, middleware Middleware) http.Handler {
 	server := &Server{svc: svc}
 

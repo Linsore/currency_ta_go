@@ -29,9 +29,7 @@ import (
 	"currency_ta_go/internal/repo"
 )
 
-// Service is the core application service. It is safe for concurrent use.
 type Service struct {
-	// Allowed currency pairs, e.g. "EUR/MXN". Presence indicates support.
 	allowedPairs map[string]struct{}
 
 	// Dependencies
@@ -44,13 +42,11 @@ type Service struct {
 	startWorkerOnce  sync.Once
 }
 
-// updateJob is a work item consumed by the background worker.
 type updateJob struct {
 	id   uuid.UUID
 	pair string
 }
 
-// UpdateStatus represents the public view of an update request.
 type UpdateStatus struct {
 	Status    string
 	Pair      string
@@ -59,15 +55,13 @@ type UpdateStatus struct {
 	Error     string
 }
 
-// Quote is the public model for a currency quote.
 type Quote struct {
 	Pair      string
 	Price     float64
 	UpdatedAt time.Time
 }
 
-// New constructs a Service and starts the background worker once.
-// Callers should pass an allowlist of supported pairs (upper-case, "AAA/BBB").
+
 func New(
 	allowedPairs map[string]struct{},
 	repository *repo.Repo,
@@ -85,7 +79,6 @@ func New(
 	return svc
 }
 
-// ParsePairs converts a comma-separated list like "USD/EUR,EUR/MXN" into an allowlist.
 func ParsePairs(list string) map[string]struct{} {
 	result := make(map[string]struct{})
 	for _, p := range strings.Split(list, ",") {
@@ -97,7 +90,6 @@ func ParsePairs(list string) map[string]struct{} {
 	return result
 }
 
-// ToHTTP maps domain/repository errors to HTTP status codes for handlers.
 func ToHTTP(err error) int {
 	switch {
 	case errors.Is(err, repo.ErrNotFound):
@@ -109,10 +101,8 @@ func ToHTTP(err error) int {
 	}
 }
 
-// ErrBadRequest marks input validation failures in the service layer.
 var ErrBadRequest = errors.New("bad request")
 
-// validatePair ensures the pair matches the allowlist (format checking is done at handlers).
 func (s *Service) validatePair(pair string) error {
 	if len(pair) != 7 || pair[3] != '/' {
 		return ErrBadRequest
@@ -123,9 +113,7 @@ func (s *Service) validatePair(pair string) error {
 	return nil
 }
 
-// CreateUpdate creates a "pending" update job for the given pair and enqueues it.
-// If an Idempotency-Key is supplied and already exists for the same pair, the
-// existing update ID is returned (idempotent behavior).
+
 func (s *Service) CreateUpdate(ctx context.Context, pair, idempotencyKey string) (uuid.UUID, error) {
 	if err := s.validatePair(pair); err != nil {
 		return uuid.Nil, err
@@ -148,7 +136,6 @@ func (s *Service) CreateUpdate(ctx context.Context, pair, idempotencyKey string)
 	}
 
 	if err := s.repository.InsertUpdate(ctx, updateID, pair, keyPtr); err != nil {
-		// Resolve a race on the unique index by re-reading the existing ID.
 		if strings.Contains(err.Error(), "ux_updates_pair_idem") && idempotencyKey != "" {
 			if existingID, e2 := s.repository.FindUpdateByIdem(ctx, pair, idempotencyKey); e2 == nil {
 				return existingID, nil
@@ -157,7 +144,6 @@ func (s *Service) CreateUpdate(ctx context.Context, pair, idempotencyKey string)
 		return uuid.Nil, err
 	}
 
-	// Non-blocking enqueue; a periodic sweep also picks up pending rows.
 	select {
 	case s.updatesChan <- updateJob{id: updateID, pair: pair}:
 	default:
@@ -166,7 +152,6 @@ func (s *Service) CreateUpdate(ctx context.Context, pair, idempotencyKey string)
 	return updateID, nil
 }
 
-// GetUpdate returns the current status/result of a previously created update.
 func (s *Service) GetUpdate(ctx context.Context, updateID uuid.UUID) (UpdateStatus, error) {
 	row, err := s.repository.GetUpdate(ctx, updateID)
 	if err != nil {
@@ -189,19 +174,15 @@ func (s *Service) GetUpdate(ctx context.Context, updateID uuid.UUID) (UpdateStat
 	return status, nil
 }
 
-// GetLastQuote returns the last persisted quote for the pair, using a short-lived cache.
-// On cache miss, the value is loaded from the repository and cached.
 func (s *Service) GetLastQuote(ctx context.Context, pair string) (Quote, error) {
 	if err := s.validatePair(pair); err != nil {
 		return Quote{}, ErrBadRequest
 	}
 
-	// Fast path: in-memory cache
 	if cached, ok := s.memCache.Get(pair); ok {
 		return cached, nil
 	}
 
-	// Fallback to repository
 	row, err := s.repository.GetQuote(ctx, pair)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -219,8 +200,7 @@ func (s *Service) GetLastQuote(ctx context.Context, pair string) (Quote, error) 
 	return quote, nil
 }
 
-// workerLoop processes enqueued update jobs and periodically re-enqueues
-// leftover 'pending' jobs from the database (handles restarts gracefully).
+
 func (s *Service) workerLoop() {
 	sweepTicker := time.NewTicker(30 * time.Second)
 	defer sweepTicker.Stop()
@@ -230,7 +210,6 @@ func (s *Service) workerLoop() {
 		case job := <-s.updatesChan:
 			_ = s.processUpdateJob(job)
 		case <-sweepTicker.C:
-			// Best-effort sweep: load a batch of pending rows and attempt to enqueue them.
 			ctx := context.Background()
 			rows, err := s.repository.EnqueuePending(ctx, 100)
 			if err == nil {
@@ -245,9 +224,6 @@ func (s *Service) workerLoop() {
 	}
 }
 
-// processUpdateJob fetches the price from the external API, persists it, and
-// invalidates the in-memory cache entry for the pair. Errors are recorded
-// on the update row and are not retried here (the sweep may pick them up again).
 func (s *Service) processUpdateJob(job updateJob) error {
 	ctx := context.Background()
 
@@ -267,12 +243,10 @@ func (s *Service) processUpdateJob(job updateJob) error {
 		return err
 	}
 
-	// Invalidate cache to ensure the next GET reads fresh data from DB.
 	s.memCache.Delete(job.pair)
 	return nil
 }
 
-// roundToDecimals rounds x to n decimal places.
 func roundToDecimals(x float64, n int) float64 {
 	p := math.Pow(10, float64(n))
 	return math.Round(x*p) / p

@@ -35,7 +35,7 @@ type IPLimiter struct {
 }
 
 // NewIPLimiter constructs an IP limiter using the provided limit and window size.
-func NewIPLimiter(limit int, window time.Duration) *IPLimiter {
+func New(limit int, window time.Duration) *IPLimiter {
 	return &IPLimiter{
 		limit:  limit,
 		window: window,

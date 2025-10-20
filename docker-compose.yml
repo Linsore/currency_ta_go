@@ -1,5 +1,6 @@
 version: "3.9"
 services:
+
   db:
     image: postgres:15
     environment:
@@ -20,10 +21,10 @@ services:
       db:
         condition: service_healthy
     env_file:
-      - .env          # injects these as env vars in the container
+      - .env
     environment:
       FX_PAIRS: USD/EUR,EUR/USD,EUR/MXN,USD/MXN
-
+      CORS_ALLOW_ORIGINS: "http://localhost:8081"
     ports: ["8080:8080"]
 
   swagger:
